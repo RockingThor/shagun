@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  --cream: #fbf6ee;
+  --cream-deep: #f3e6cf;
+  --ink: #2a1810;
+  --maroon: #7a1f2b;
+  --maroon-deep: #4a1018;
+  --saffron: #c45c26;
+  --gold: #c9a227;
+  --gold-soft: #f5d76e;
+  --ivory: #f7f1e3;
+}
+
+@theme inline {
+  --color-cream: var(--cream);
+  --color-cream-deep: var(--cream-deep);
+  --color-ink: var(--ink);
+  --color-maroon: var(--maroon);
+  --color-maroon-deep: var(--maroon-deep);
+  --color-saffron: var(--saffron);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-ivory: var(--ivory);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+}
+
+.paper-grid {
+  background-color: var(--cream);
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(245, 215, 110, 0.28), transparent 36%),
+    radial-gradient(circle at 88% 0%, rgba(196, 92, 38, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(122, 31, 43, 0.03), transparent 28%);
+}
+
+.gold-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+.ornament-border {
+  box-shadow:
+    inset 0 0 0 1px rgba(201, 162, 39, 0.45),
+    inset 0 0 0 6px rgba(251, 246, 238, 0.65);
+}

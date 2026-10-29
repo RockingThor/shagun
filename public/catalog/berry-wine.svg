@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <rect width="400" height="500" fill="#2A1014"/>
+  <rect x="14" y="14" width="372" height="472" rx="22" fill="#4A1820" stroke="#E8C547" stroke-width="2"/>
+  <rect x="36" y="36" width="328" height="300" rx="16" fill="#7A1F2B"/>
+  <g transform="translate(0,10)"><rect x="170" y="150" width="60" height="160" rx="18" fill="#6B1D32"/><rect x="158" y="132" width="84" height="28" rx="8" fill="#E8C547"/><text x="200" y="360" text-anchor="middle" font-size="13" fill="#FBF3E4">#6B1D32</text></g>
+  <text x="200" y="370" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#F5D76E">Berry Wine</text>
+  <text x="200" y="398" text-anchor="middle" font-family="ui-sans-serif, system-ui" font-size="13" fill="#F7E7CC">Lip shade · placeholder art</text>
+  <text x="200" y="442" text-anchor="middle" font-family="ui-sans-serif, system-ui" font-size="20" fill="#FBF3E4">₹890</text>
+</svg>

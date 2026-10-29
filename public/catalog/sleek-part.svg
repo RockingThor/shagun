@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <rect width="400" height="500" fill="#2A1014"/>
+  <rect x="14" y="14" width="372" height="472" rx="22" fill="#4A1820" stroke="#E8C547" stroke-width="2"/>
+  <rect x="36" y="36" width="328" height="300" rx="16" fill="#7A1F2B"/>
+  <g transform="translate(0,10)"><ellipse cx="200" cy="210" rx="70" ry="90" fill="#1A120C"/><ellipse cx="200" cy="200" rx="38" ry="48" fill="#E2B089"/></g>
+  <text x="200" y="370" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#F5D76E">Sleek Centre Part</text>
+  <text x="200" y="398" text-anchor="middle" font-family="ui-sans-serif, system-ui" font-size="13" fill="#F7E7CC">Hairstyle · placeholder art</text>
+  <text x="200" y="442" text-anchor="middle" font-family="ui-sans-serif, system-ui" font-size="20" fill="#FBF3E4">₹790</text>
+</svg>
