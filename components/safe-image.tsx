@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const FALLBACK = "/demo/selfie.jpg";
 
@@ -14,21 +14,18 @@ export function SafeImage({
   alt: string;
   className?: string;
 }) {
-  const [current, setCurrent] = useState(src || FALLBACK);
-
-  useEffect(() => {
-    setCurrent(src || FALLBACK);
-  }, [src]);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const current = failedSrc === src || !src ? FALLBACK : src;
 
   return (
     // Catalog and demo renders are SVG placeholders until real photos land.
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={current || FALLBACK}
+      src={current}
       alt={alt}
       className={cn("bg-cream-deep object-cover", className)}
       onError={() => {
-        if (current !== FALLBACK) setCurrent(FALLBACK);
+        if (src && src !== FALLBACK) setFailedSrc(src);
       }}
     />
   );

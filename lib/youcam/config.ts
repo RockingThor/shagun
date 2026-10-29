@@ -22,6 +22,7 @@ export function youcamConfig() {
     makeupPath: env("YOUCAM_MAKEUP_PATH", "/s2s/v2.0/task/makeup-vto"),
     lipShape: env("YOUCAM_LIP_SHAPE", "original"),
     dailyIpCap: Number(env("YOUCAM_DAILY_IP_CAP", "8")),
+    globalDailyCap: Number(env("YOUCAM_GLOBAL_DAILY_CAP", "25")),
     pollHintMs: Number(env("YOUCAM_POLL_HINT_MS", "3000")),
   };
 }

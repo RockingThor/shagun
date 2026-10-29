@@ -100,4 +100,19 @@ describe("earring skip", () => {
       ),
     ).toBe("hair");
   });
+
+  it("does not treat a success-without-image step as a usable source", () => {
+    const steps: Record<string, StepLike> = {
+      clothes: { status: "success" },
+      hair: { status: "pending" },
+      earrings: { status: "pending" },
+      lipstick: { status: "pending" },
+    };
+    expect(
+      resolveSourceStep(
+        steps as Record<(typeof CHAIN_STEPS)[number], StepLike>,
+        "hair",
+      ),
+    ).toBe("selfie");
+  });
 });

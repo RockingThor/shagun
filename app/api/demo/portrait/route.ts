@@ -1,6 +1,7 @@
 import { demoImageFor } from "@/lib/demo-renders";
 import { CHAIN_STEPS, type ChainStep, type LookIds } from "@/lib/look/chain";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function asStep(value: string | null): ChainStep | "selfie" {

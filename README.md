@@ -57,7 +57,31 @@ Sample selfie: `public/demo/selfie.jpg` (768×1024). Step frames: `public/demo/l
 3. Set `DEMO_MODE=false`.
 4. `npm run dev` — same URL. The server uploads JPEGs, starts the four tasks in order, and polls until each step completes.
 
-`.env.example` documents every variable (`YOUCAM_API_BASE`, daily IP cap, feature paths, hair template overrides). Failed tasks are not charged. Earring PNG outputs are converted to JPEG before the next upload.
+`.env.example` documents every variable (`YOUCAM_API_BASE`, daily IP cap, global daily cap, feature paths, hair template overrides). Failed tasks are not charged. Earring PNG outputs are converted to JPEG before the next upload.
+
+The **sample photo** always serves `public/demo/looks` at **zero units**, including swaps that stay on captured looks — even when a live key is set. Only a visitor’s own upload spends YouCam units.
+
+Live looks are capped so the balance lasts through judging:
+
+| Cap | Env | Default |
+|---|---|---|
+| Site-wide per UTC day | `YOUCAM_GLOBAL_DAILY_CAP` | 25 |
+| Per device per UTC day | `YOUCAM_DAILY_IP_CAP` | 8 |
+
+Caps are stored in [Netlify Blobs](https://docs.netlify.com/blobs/overview/) on deploy, and in memory locally. Hitting a cap shows a friendly message and offers the sample-photo demo.
+
+## Deploy on Netlify
+
+This repo includes `netlify.toml` for Next.js on the free plan. In the Netlify UI set:
+
+```
+YOUCAM_API_KEY=<server-only key>
+DEMO_MODE=false
+YOUCAM_GLOBAL_DAILY_CAP=25
+YOUCAM_DAILY_IP_CAP=8
+```
+
+Never put the key in `NEXT_PUBLIC_*` or commit `.env` / `.env.local`. Demo vs live badges are read at **runtime** from `/api/status`, so a production key is not baked in at build time.
 
 Live payloads:
 

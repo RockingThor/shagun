@@ -1,3 +1,4 @@
+import { DURABLE_TTL, durableGetBytes, durableGetJson, durableSetBytes, durableSetJson } from "@/lib/store/durable";
 import type { ChainStep } from "@/lib/look/chain";
 
 export type CachedStep = {
@@ -6,36 +7,40 @@ export type CachedStep = {
   cachedAt: number;
 };
 
-type Memory = {
-  steps: Map<string, CachedStep>;
-};
+function stepKey(key: string): string {
+  return `cache:step:${key}`;
+}
 
-const globalForCache = globalThis as typeof globalThis & {
-  __shagunYouCamCache?: Memory;
-};
+function frameKey(key: string): string {
+  return `cache:frame:${key}`;
+}
 
-const memory: Memory =
-  globalForCache.__shagunYouCamCache ??
-  (globalForCache.__shagunYouCamCache = { steps: new Map() });
-
-const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-
-export function getCachedStep(key: string): CachedStep | undefined {
-  const hit = memory.steps.get(key);
+export async function getCachedStep(key: string): Promise<CachedStep | undefined> {
+  const hit = await durableGetJson<CachedStep>(stepKey(key));
   if (!hit) return undefined;
-  if (Date.now() - hit.cachedAt > TWO_HOURS_MS) {
-    memory.steps.delete(key);
+  if (Date.now() - hit.cachedAt > DURABLE_TTL.cache * 1000) {
     return undefined;
   }
   return hit;
 }
 
-export function setCachedStep(key: string, value: Omit<CachedStep, "cachedAt">) {
-  memory.steps.set(key, { ...value, cachedAt: Date.now() });
+export async function setCachedStep(
+  key: string,
+  value: Omit<CachedStep, "cachedAt">,
+): Promise<void> {
+  await durableSetJson(
+    stepKey(key),
+    { ...value, cachedAt: Date.now() },
+    DURABLE_TTL.cache,
+  );
 }
 
-export function cacheSize(): number {
-  return memory.steps.size;
+export async function getCachedFrame(key: string): Promise<Buffer | undefined> {
+  return durableGetBytes(frameKey(key));
+}
+
+export async function setCachedFrame(key: string, bytes: Buffer): Promise<void> {
+  await durableSetBytes(frameKey(key), bytes, DURABLE_TTL.cache);
 }
 
 export function describeCacheHit(step: ChainStep, key: string): string {

@@ -1,18 +1,20 @@
-import { Badge } from "@/components/ui/badge";
+import { ModeBadge } from "@/components/mode-badge";
 import { OCCASION_COPY, OCCASIONS, formatInr } from "@/data/catalog";
 import { UNITS_PER_LOOK } from "@/lib/look/chain";
-import { isDemoMode } from "@/lib/youcam/config";
 import { ArrowRight, IndianRupee, Sparkles, Layers } from "lucide-react";
 import Link from "next/link";
 
-export default function HomePage() {
-  const demoMode = isDemoMode();
+export const dynamic = "force-dynamic";
 
+export default function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:py-16">
       <section className="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
         <div>
-          {demoMode ? <Badge>Demo mode · no API key</Badge> : <Badge>Live YouCam</Badge>}
+          <ModeBadge
+            demoLabel="Demo mode · no API key"
+            liveLabel="Live YouCam"
+          />
           <h1 className="mt-4 max-w-xl font-display text-5xl leading-[1.05] text-maroon sm:text-6xl">
             See the whole festive look on you — then buy it as one cart.
           </h1>

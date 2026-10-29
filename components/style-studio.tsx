@@ -1,6 +1,7 @@
 "use client";
 
 import { BeforeAfter } from "@/components/before-after";
+import { useRuntimeStatus } from "@/components/runtime-status";
 import { SafeImage } from "@/components/safe-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,6 @@ import {
   OCCASION_COPY,
   OCCASIONS,
   CATEGORY_LABEL,
-  catalog,
   formatInr,
   itemsInCategory,
   type CatalogItem,
@@ -30,14 +30,29 @@ import {
   type LookIds,
 } from "@/lib/look/chain";
 import { DEMO_SELFIE } from "@/lib/look/defaults";
+import { SAMPLE_PHOTO_HASH } from "@/lib/look/sample";
 import { remainingBudget } from "@/lib/look/picker";
-import { Check, Loader2, Sparkles, Upload, X } from "lucide-react";
+import { Check, Loader2, RotateCcw, Sparkles, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+type JobStep = {
+  id: ChainStep;
+  label: string;
+  api: string;
+  detail: string;
+  units: number;
+  status: string;
+  imageUrl: string | null;
+  dstId?: string | null;
+  error: string | null;
+  note: string | null;
+};
 
 type JobPayload = {
   jobId: string;
   status: "running" | "success" | "error";
   demoMode: boolean;
+  samplePhoto?: boolean;
   error: string | null;
   occasion: Occasion;
   budget: number;
@@ -54,53 +69,78 @@ type JobPayload = {
   unitsUsed: number;
   unitsPlanned: number;
   note: string | null;
-  steps: Array<{
-    id: ChainStep;
-    label: string;
-    api: string;
-    detail: string;
-    units: number;
-    status: string;
-    imageUrl: string | null;
-    error: string | null;
-    note: string | null;
-  }>;
+  steps: JobStep[];
 };
 
-const SAMPLE_HASH = "demo-selfie";
+type ApiError = {
+  error?: string;
+  code?: string;
+  offerSample?: boolean;
+  samplePhotoHash?: string;
+};
 
-export function StyleStudio({ demoMode }: { demoMode: boolean }) {
+function priorStepsFrom(job: JobPayload | null) {
+  if (!job) return undefined;
+  return job.steps.map((step) => ({
+    id: step.id,
+    status: step.status,
+    imageUrl: step.imageUrl,
+    dstId: step.dstId,
+  }));
+}
+
+export function StyleStudio() {
+  const runtime = useRuntimeStatus();
+  const demoMode = runtime?.demoMode;
   const inputRef = useRef<HTMLInputElement>(null);
   const [occasion, setOccasion] = useState<Occasion>("diwali");
   const [budget, setBudget] = useState(DEFAULT_BUDGET);
-  const [imageHash, setImageHash] = useState<string | null>(SAMPLE_HASH);
+  const [imageHash, setImageHash] = useState<string | null>(SAMPLE_PHOTO_HASH);
   const [previewUrl, setPreviewUrl] = useState(DEMO_SELFIE);
   const [uploading, setUploading] = useState(false);
   const [job, setJob] = useState<JobPayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [offerSample, setOfferSample] = useState(false);
   const [swapCategory, setSwapCategory] = useState<Category | null>(null);
   const [added, setAdded] = useState(false);
+
+  const usingSample = imageHash === SAMPLE_PHOTO_HASH;
 
   useEffect(() => {
     if (!job || job.status !== "running") return;
     const timer = window.setInterval(async () => {
       const response = await fetch(`/api/look/${job.jobId}`);
-      const next = (await response.json()) as JobPayload & { error?: string };
+      const next = (await response.json()) as JobPayload & ApiError;
       if (!response.ok) {
         setMessage(next.error ?? "Lost the render job.");
+        setOfferSample(Boolean(next.offerSample));
         setBusy(false);
         return;
       }
       setJob(next);
+      if (next.status === "error") {
+        setBusy(false);
+        return;
+      }
       if (next.status !== "running") setBusy(false);
     }, 900);
     return () => window.clearInterval(timer);
   }, [job]);
 
+  function loadSamplePhoto() {
+    setImageHash(SAMPLE_PHOTO_HASH);
+    setPreviewUrl(DEMO_SELFIE);
+    setJob(null);
+    setAdded(false);
+    setOfferSample(false);
+    setMessage(null);
+  }
+
   async function onFile(file: File) {
     setUploading(true);
     setMessage(null);
+    setOfferSample(false);
     const body = new FormData();
     body.set("file", file);
     const response = await fetch("/api/upload", { method: "POST", body });
@@ -120,30 +160,40 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
     setAdded(false);
   }
 
-  async function startJob(look?: LookIds, fromStep?: ChainStep) {
-    if (!imageHash) {
+  async function startJob(
+    look?: LookIds,
+    fromStep?: ChainStep,
+    overrides?: { hash?: string; preview?: string; prior?: JobPayload | null },
+  ) {
+    const hash = overrides?.hash ?? imageHash;
+    const preview = overrides?.preview ?? previewUrl;
+    const priorJob = overrides?.prior === undefined ? job : overrides.prior;
+    if (!hash) {
       setMessage("Upload a chest-up selfie, or use the sample.");
       return;
     }
     setBusy(true);
     setAdded(false);
     setMessage(null);
+    setOfferSample(false);
     const response = await fetch("/api/look", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        imageHash,
+        imageHash: hash,
         occasion,
         budget,
         look,
         fromStep,
-        selfiePreviewUrl: previewUrl,
+        selfiePreviewUrl: preview,
+        priorSteps: look ? priorStepsFrom(priorJob) : undefined,
       }),
     });
-    const data = (await response.json()) as JobPayload & { error?: string };
+    const data = (await response.json()) as JobPayload & ApiError;
     if (!response.ok) {
       setBusy(false);
       setMessage(data.error ?? "Could not start the look.");
+      setOfferSample(Boolean(data.offerSample));
       return;
     }
     setJob(data);
@@ -179,8 +229,15 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
     );
   }, [swapCategory, occasion]);
 
-  const resultSrc =
-    job?.finalImageUrl || job?.currentImageUrl || previewUrl;
+  const resultSrc = job?.finalImageUrl || job?.currentImageUrl || previewUrl;
+  const failedStep = job?.steps.find((step) => step.status === "error");
+  const liveLeft =
+    demoMode === false && runtime
+      ? Math.min(
+          runtime.globalRemaining ?? runtime.globalDailyCap,
+          runtime.ipRemaining ?? runtime.dailyIpCap,
+        )
+      : null;
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
@@ -231,6 +288,11 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
                     <Check className="mx-auto size-3.5 text-saffron" />
                   ) : status === "skipped" ? (
                     "skip"
+                  ) : status === "error" ? (
+                    <span className="inline-flex flex-col items-center gap-0.5 text-maroon">
+                      <X className="size-3.5" />
+                      failed
+                    </span>
                   ) : (
                     `${STEP_META[step].units}u`
                   )}
@@ -248,10 +310,24 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
             Style a look within {formatInr(budget)}
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-ink/75">
-            {demoMode
+            {demoMode === true
               ? "Demo mode is on — real YouCam renders, no units spent. Clothes, then hair, then earrings, then lipstick."
-              : "Live YouCam: clothes, then hair, then earrings, then lipstick. Hair runs before jewellery so it cannot wipe the earrings."}
+              : demoMode === false && usingSample
+                ? "Live YouCam is on, but the sample photo uses the captured chain at zero units. Upload your own selfie to spend the live balance."
+                : demoMode === false
+                  ? "Live YouCam: clothes, then hair, then earrings, then lipstick. Hair runs before jewellery so it cannot wipe the earrings."
+                  : "Clothes, then hair, then earrings, then lipstick. Hair runs before jewellery so it cannot wipe the earrings."}
           </p>
+          {demoMode === false && liveLeft !== null ? (
+            <p className="mt-2 text-xs text-ink/55">
+              {liveLeft} live look
+              {liveLeft === 1 ? "" : "s"} left today on this site
+              {runtime
+                ? ` · ${runtime.globalRemaining ?? "—"} global / ${runtime.ipRemaining ?? "—"} on this device`
+                : ""}
+              .
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-3">
@@ -267,12 +343,7 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
           <Button
             type="button"
             variant="ghost"
-            onClick={() => {
-              setImageHash(SAMPLE_HASH);
-              setPreviewUrl(DEMO_SELFIE);
-              setJob(null);
-              setAdded(false);
-            }}
+            onClick={() => loadSamplePhoto()}
           >
             Use sample photo
           </Button>
@@ -369,9 +440,28 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
         </Button>
 
         {message ? (
-          <p className="rounded-2xl border border-maroon/30 bg-maroon/8 px-4 py-3 text-sm text-maroon">
-            {message}
-          </p>
+          <div className="space-y-3 rounded-2xl border border-maroon/30 bg-maroon/8 px-4 py-3 text-sm text-maroon">
+            <p>{message}</p>
+            {offerSample ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="maroon"
+                  className="px-4 py-1.5 text-xs"
+                  onClick={() => {
+                    loadSamplePhoto();
+                    void startJob(undefined, undefined, {
+                      hash: SAMPLE_PHOTO_HASH,
+                      preview: DEMO_SELFIE,
+                      prior: null,
+                    });
+                  }}
+                >
+                  Try the sample photo
+                </Button>
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         {job ? (
@@ -389,9 +479,50 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
                 </p>
               </div>
               <Badge>
-                {job.unitsUsed}/{job.unitsPlanned} units
+                {job.samplePhoto
+                  ? "Sample · 0 units"
+                  : `${job.unitsUsed}/${job.unitsPlanned} units`}
               </Badge>
             </div>
+            {job.status === "error" ? (
+              <div className="space-y-3 rounded-2xl border border-maroon/40 bg-maroon/8 px-4 py-3">
+                <p className="text-sm font-semibold text-maroon">
+                  {failedStep
+                    ? `${failedStep.label} could not finish.`
+                    : "This look could not finish."}
+                </p>
+                <p className="text-sm leading-6 text-ink/75">
+                  {job.error || failedStep?.error || "YouCam returned an error."}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    className="px-4 py-1.5 text-xs"
+                    disabled={busy}
+                    onClick={() => void startJob(job.look, job.fromStep)}
+                  >
+                    <RotateCcw className="size-3.5" />
+                    Try this look again
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="px-4 py-1.5 text-xs"
+                    disabled={busy}
+                    onClick={() => {
+                      loadSamplePhoto();
+                      void startJob(undefined, undefined, {
+                        hash: SAMPLE_PHOTO_HASH,
+                        preview: DEMO_SELFIE,
+                        prior: null,
+                      });
+                    }}
+                  >
+                    Use the sample photo
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             {job.note ? (
               <p className="rounded-2xl border border-gold/40 bg-gold-soft/20 px-4 py-3 text-sm text-maroon">
                 {job.note}

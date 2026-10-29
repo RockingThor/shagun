@@ -6,22 +6,12 @@ import { OCCASION_COPY, formatInr } from "@/data/catalog";
 import { readCart, writeCart, type CartLook } from "@/lib/cart";
 import { Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export function CartView() {
-  const [looks, setLooks] = useState<CartLook[] | null>(null);
-
-  useEffect(() => {
-    setLooks(readCart());
-  }, []);
-
-  if (looks === null) {
-    return (
-      <div className="rounded-[28px] border border-gold/30 bg-white/60 p-8">
-        <p className="text-sm text-ink/70">Opening your cart…</p>
-      </div>
-    );
-  }
+  const [looks, setLooks] = useState<CartLook[]>(() =>
+    typeof window === "undefined" ? [] : readCart(),
+  );
 
   if (looks.length === 0) {
     return (

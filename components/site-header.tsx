@@ -1,12 +1,12 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { ModeBadge } from "@/components/mode-badge";
 import { readCart } from "@/lib/cart";
 import { ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-export function SiteHeader({ demoMode }: { demoMode: boolean }) {
+export function SiteHeader() {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export function SiteHeader({ demoMode }: { demoMode: boolean }) {
           </span>
         </Link>
         <nav className="flex items-center gap-3 text-sm font-medium">
-          {demoMode ? <Badge>Demo mode</Badge> : <Badge>Live YouCam</Badge>}
+          <ModeBadge />
           <Link href="/style" className="text-ink/80 hover:text-maroon">
             Style
           </Link>

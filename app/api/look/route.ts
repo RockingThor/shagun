@@ -4,10 +4,13 @@ import {
   type ChainStep,
   type LookIds,
 } from "@/lib/look/chain";
-import { createLookJob, serializeJob } from "@/lib/look/jobs";
+import { createLookJob, getUpload, serializeJob } from "@/lib/look/jobs";
+import type { PriorHint } from "@/lib/look/prior";
+import { isSamplePhoto } from "@/lib/look/sample";
 import { clientIp, consumeLiveLookSlot } from "@/lib/youcam/rate-limit";
 import { youcamConfig } from "@/lib/youcam/config";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function isOccasion(value: unknown): value is Occasion {
@@ -32,6 +35,16 @@ function isLookIds(value: unknown): value is LookIds {
   );
 }
 
+function isPriorSteps(value: unknown): value is PriorHint[] {
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (entry) =>
+      entry &&
+      typeof entry === "object" &&
+      typeof (entry as PriorHint).id === "string",
+  );
+}
+
 export async function POST(request: Request) {
   const body = (await request.json()) as {
     imageHash?: string;
@@ -40,6 +53,7 @@ export async function POST(request: Request) {
     look?: LookIds;
     fromStep?: ChainStep;
     selfiePreviewUrl?: string;
+    priorSteps?: PriorHint[];
   };
 
   if (!body.imageHash) {
@@ -58,15 +72,30 @@ export async function POST(request: Request) {
   if (body.fromStep && !isStep(body.fromStep)) {
     return Response.json({ error: "Unknown render step." }, { status: 400 });
   }
+  if (body.priorSteps && !isPriorSteps(body.priorSteps)) {
+    return Response.json({ error: "Prior steps are invalid." }, { status: 400 });
+  }
 
   const config = youcamConfig();
-  if (!config.demoMode) {
-    const slot = consumeLiveLookSlot(clientIp(request.headers));
+  const sample = isSamplePhoto(body.imageHash);
+  if (!config.demoMode && !sample) {
+    const upload = await getUpload(body.imageHash);
+    if (!upload) {
+      return Response.json(
+        { error: "Upload a selfie first.", offerSample: true },
+        { status: 400 },
+      );
+    }
+    const slot = await consumeLiveLookSlot(clientIp(request.headers));
     if (!slot.allowed) {
       return Response.json(
         {
-          error: `This IP has used today's ${slot.limit} live looks. Come back tomorrow, or run DEMO_MODE=true.`,
-          code: "ip_cap",
+          error: slot.message,
+          code: slot.code,
+          offerSample: true,
+          samplePhotoHash: slot.samplePhotoHash,
+          limit: slot.limit,
+          remaining: 0,
         },
         { status: 429 },
       );
@@ -80,6 +109,7 @@ export async function POST(request: Request) {
     look: body.look,
     fromStep: body.fromStep,
     selfiePreviewUrl: body.selfiePreviewUrl,
+    priorSteps: body.priorSteps,
   });
 
   return Response.json(serializeJob(job));

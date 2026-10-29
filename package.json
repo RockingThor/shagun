@@ -12,6 +12,7 @@
     "generate:placeholders": "npx --yes tsx scripts/generate-placeholders.ts"
   },
   "dependencies": {
+    "@netlify/blobs": "^10.0.11",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.64.0",

@@ -1,5 +1,6 @@
 import { hashBuffer, storeUpload } from "@/lib/look/jobs";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const hash = hashBuffer(bytes);
   const previewUrl = `data:${contentType};base64,${bytes.toString("base64")}`;
-  storeUpload({
+  await storeUpload({
     hash,
     bytes,
     contentType,
