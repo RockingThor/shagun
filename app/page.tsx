@@ -19,9 +19,9 @@ export default function HomePage() {
           <p className="mt-5 max-w-xl text-base leading-7 text-ink/75">
             Shagun is an Indian occasion-styling store. Upload a chest-up selfie,
             pick Diwali, a sangeet, an office party or a wedding, and a rupee
-            budget. We assemble an outfit, earrings, a hairstyle and a lip shade,
-            then chain four YouCam try-ons so you are not guessing in a changing
-            room WhatsApp thread.
+            budget. We assemble an outfit, a hairstyle, earrings and a lip shade,
+            then chain four YouCam try-ons — clothes, hair, earrings, lipstick —
+            so you are not guessing in a changing-room WhatsApp thread.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -39,16 +39,16 @@ export default function HomePage() {
             </Link>
           </div>
           <p className="mt-6 text-sm text-ink/60">
-            {UNITS_PER_LOOK} YouCam units per full look · clothes 2 + earrings 1 +
-            hair 2 + lipstick 1
+            {UNITS_PER_LOOK} YouCam units per full look · clothes 2 + hair 2 +
+            earrings 1 + lipstick 1
           </p>
         </div>
         <div className="ornament-border overflow-hidden rounded-[32px] bg-maroon-deep">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/api/demo/portrait?outfit=banarasi-lehenga&earrings=kundan-chandbali&hair=bridal-bun&lip=sindoor-rose&step=lipstick"
-            alt="Illustrated wedding-guest look on a sample portrait"
-            className="aspect-[4/5] w-full object-cover"
+            src="/demo/looks/wedding-guest-lipstick.jpg"
+            alt="Wedding-guest look rendered on a chest-up selfie"
+            className="aspect-[3/4] w-full object-cover object-top"
           />
         </div>
       </section>
@@ -60,7 +60,7 @@ export default function HomePage() {
           How a look is rendered
         </p>
         <h2 className="mt-2 font-display text-3xl text-maroon">
-          Four APIs, one face, no re-upload between steps
+          Clothes, then hair, then earrings, then lipstick
         </h2>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
@@ -71,13 +71,13 @@ export default function HomePage() {
             },
             {
               icon: Sparkles,
-              title: "Earrings 2D",
-              body: "The clothed result becomes the source for jewellery.",
+              title: "Hair transfer",
+              body: "Hairstyle V2.1 first — it redraws the head, so jewellery cannot go before it.",
             },
             {
               icon: Sparkles,
-              title: "Hair transfer",
-              body: "Hairstyle V2.1 restyles from a template or reference.",
+              title: "Earrings 2D",
+              body: "Jewellery on the restyled portrait. Skipped if hair covers the lobes.",
             },
             {
               icon: IndianRupee,
@@ -106,17 +106,25 @@ export default function HomePage() {
             <Link
               key={id}
               href="/style"
-              className="rounded-[24px] border border-gold/30 bg-white/60 p-5 hover:border-saffron"
+              className="flex gap-4 rounded-[24px] border border-gold/30 bg-white/60 p-4 hover:border-saffron"
             >
-              <h3 className="font-display text-2xl text-maroon">
-                {OCCASION_COPY[id].label}
-              </h3>
-              <p className="mt-1 text-xs uppercase tracking-[0.16em] text-saffron">
-                {OCCASION_COPY[id].kicker}
-              </p>
-              <p className="mt-3 text-sm leading-6 text-ink/70">
-                {OCCASION_COPY[id].blurb}
-              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/demo/looks/${id}-lipstick.jpg`}
+                alt=""
+                className="h-28 w-[5.25rem] shrink-0 rounded-2xl object-cover object-top"
+              />
+              <span className="min-w-0">
+                <h3 className="font-display text-2xl text-maroon">
+                  {OCCASION_COPY[id].label}
+                </h3>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-saffron">
+                  {OCCASION_COPY[id].kicker}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-ink/70">
+                  {OCCASION_COPY[id].blurb}
+                </p>
+              </span>
             </Link>
           ))}
         </div>
@@ -132,8 +140,8 @@ export default function HomePage() {
           units twice.
         </p>
         <p className="mt-4 text-sm text-gold-soft">
-          Floor looks start around {formatInr(6860)}. A wedding-guest Banarasi
-          set sits closer to {formatInr(14000)}.
+          An office-party look sits around {formatInr(6860)}. A wedding-guest
+          Banarasi set is {formatInr(13160)}.
         </p>
       </section>
     </div>

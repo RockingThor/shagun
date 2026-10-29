@@ -11,6 +11,7 @@ import {
   DEFAULT_BUDGET,
   OCCASION_COPY,
   OCCASIONS,
+  CATEGORY_LABEL,
   catalog,
   formatInr,
   itemsInCategory,
@@ -28,6 +29,7 @@ import {
   type ChainStep,
   type LookIds,
 } from "@/lib/look/chain";
+import { DEMO_SELFIE } from "@/lib/look/defaults";
 import { remainingBudget } from "@/lib/look/picker";
 import { Check, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -51,6 +53,7 @@ type JobPayload = {
   finalImageUrl: string | null;
   unitsUsed: number;
   unitsPlanned: number;
+  note: string | null;
   steps: Array<{
     id: ChainStep;
     label: string;
@@ -60,6 +63,7 @@ type JobPayload = {
     status: string;
     imageUrl: string | null;
     error: string | null;
+    note: string | null;
   }>;
 };
 
@@ -70,7 +74,7 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
   const [occasion, setOccasion] = useState<Occasion>("diwali");
   const [budget, setBudget] = useState(DEFAULT_BUDGET);
   const [imageHash, setImageHash] = useState<string | null>(SAMPLE_HASH);
-  const [previewUrl, setPreviewUrl] = useState("/demo/selfie.svg");
+  const [previewUrl, setPreviewUrl] = useState(DEMO_SELFIE);
   const [uploading, setUploading] = useState(false);
   const [job, setJob] = useState<JobPayload | null>(null);
   const [busy, setBusy] = useState(false);
@@ -193,7 +197,7 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
             <SafeImage
               src={resultSrc}
               alt="Look preview"
-              className="aspect-[4/5] w-full"
+              className="aspect-[3/4] w-full"
             />
           </div>
         )}
@@ -210,7 +214,9 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
                     ? "border-gold bg-gold-soft/20"
                     : status === "running"
                       ? "border-saffron bg-saffron/10"
-                      : status === "error"
+                      : status === "skipped"
+                        ? "border-gold/50 bg-gold-soft/10"
+                        : status === "error"
                         ? "border-maroon bg-maroon/10"
                         : "border-gold/20 bg-white/40",
                 )}
@@ -223,6 +229,8 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
                     <Loader2 className="mx-auto size-3.5 animate-spin" />
                   ) : status === "success" || status === "cached" ? (
                     <Check className="mx-auto size-3.5 text-saffron" />
+                  ) : status === "skipped" ? (
+                    "skip"
                   ) : (
                     `${STEP_META[step].units}u`
                   )}
@@ -241,8 +249,8 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-ink/75">
             {demoMode
-              ? "Demo mode is on — no YouCam key, no units spent. The chain still runs in order so you can judge the product."
-              : "Live YouCam: clothes, then earrings, then hair, then lipstick. Each step feeds the next."}
+              ? "Demo mode is on — real YouCam renders, no units spent. Clothes, then hair, then earrings, then lipstick."
+              : "Live YouCam: clothes, then hair, then earrings, then lipstick. Hair runs before jewellery so it cannot wipe the earrings."}
           </p>
         </div>
 
@@ -261,7 +269,7 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
             variant="ghost"
             onClick={() => {
               setImageHash(SAMPLE_HASH);
-              setPreviewUrl("/demo/selfie.svg");
+              setPreviewUrl(DEMO_SELFIE);
               setJob(null);
               setAdded(false);
             }}
@@ -384,9 +392,15 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
                 {job.unitsUsed}/{job.unitsPlanned} units
               </Badge>
             </div>
+            {job.note ? (
+              <p className="rounded-2xl border border-gold/40 bg-gold-soft/20 px-4 py-3 text-sm text-maroon">
+                {job.note}
+              </p>
+            ) : null}
             {!job.withinBudget ? (
               <p className="text-sm text-saffron">
-                Nothing cheaper fits this occasion. This is the floor price.
+                This occasion look is {formatInr(Math.abs(job.leftover))} over the
+                budget you set.
               </p>
             ) : (
               <p className="text-sm text-ink/70">
@@ -402,9 +416,12 @@ export function StyleStudio({ demoMode }: { demoMode: boolean }) {
                   <SafeImage
                     src={item.image}
                     alt={item.name}
-                    className="size-14 rounded-xl"
+                    className="size-14 shrink-0 rounded-xl object-cover"
                   />
                   <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-saffron">
+                      {CATEGORY_LABEL[item.category]}
+                    </p>
                     <p className="truncate font-medium text-ink">{item.name}</p>
                     <p className="text-xs text-ink/60">{formatInr(item.priceInr)}</p>
                   </div>

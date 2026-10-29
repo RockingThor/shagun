@@ -1,12 +1,12 @@
 import type { CatalogItem, Category } from "@/data/catalog";
 
-export const CHAIN_STEPS = ["clothes", "earrings", "hair", "lipstick"] as const;
+export const CHAIN_STEPS = ["clothes", "hair", "earrings", "lipstick"] as const;
 export type ChainStep = (typeof CHAIN_STEPS)[number];
 
 export const STEP_CATEGORY: Record<ChainStep, Category> = {
   clothes: "outfit",
-  earrings: "earrings",
   hair: "hairstyle",
+  earrings: "earrings",
   lipstick: "lip",
 };
 
@@ -20,17 +20,17 @@ export const STEP_META: Record<
     units: 2,
     detail: "Drape the outfit on the chest-up selfie.",
   },
-  earrings: {
-    label: "Earrings 2D VTO",
-    api: "2d-vto/earring",
-    units: 1,
-    detail: "Place the jewellery on the clothed portrait.",
-  },
   hair: {
     label: "Hairstyle transfer",
     api: "hair-transfer",
     units: 2,
-    detail: "Restyle hair from a template or reference.",
+    detail: "Restyle hair before jewellery, or earrings get redrawn away.",
+  },
+  earrings: {
+    label: "Earrings 2D VTO",
+    api: "2d-vto/earring",
+    units: 1,
+    detail: "Place the jewellery once the ears are visible.",
   },
   lipstick: {
     label: "Makeup VTO lipstick",
@@ -44,6 +44,9 @@ export const UNITS_PER_LOOK = CHAIN_STEPS.reduce(
   (sum, step) => sum + STEP_META[step].units,
   0,
 );
+
+export const EARLOBE_NOTE =
+  "Earrings were skipped because this hairstyle covers the ears. Try an updo so the lobes show — failed earring tasks are not charged.";
 
 export type LookIds = {
   outfitId: string;
@@ -124,4 +127,44 @@ export function withSwappedItem(look: LookIds, item: CatalogItem): LookIds {
     case "lip":
       return { ...look, lipId: item.id };
   }
+}
+
+export function isEarlobeError(message?: string | null): boolean {
+  if (!message) return false;
+  return message.toLowerCase().includes("earlobe alignment not confident");
+}
+
+export type StepLike = {
+  status: string;
+  imageUrl?: string | null;
+  dstId?: string | null;
+};
+
+export function resolveSourceStep(
+  steps: Record<ChainStep, StepLike>,
+  forStep: ChainStep,
+): ChainStep | "selfie" {
+  let prev = sourceStep(forStep);
+  while (prev !== "selfie") {
+    const state = steps[prev];
+    const usable =
+      state &&
+      (state.status === "success" ||
+        state.status === "cached" ||
+        state.status === "skipped") &&
+      (Boolean(state.dstId) || Boolean(state.imageUrl));
+    if (usable && state.status !== "skipped") return prev;
+    prev = sourceStep(prev);
+  }
+  return "selfie";
+}
+
+export function skipEarrings(
+  hairImageUrl?: string | null,
+): { status: "skipped"; imageUrl?: string; note: string } {
+  return {
+    status: "skipped",
+    imageUrl: hairImageUrl ?? undefined,
+    note: EARLOBE_NOTE,
+  };
 }

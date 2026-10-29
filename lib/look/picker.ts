@@ -4,6 +4,7 @@ import {
   type Occasion,
 } from "@/data/catalog";
 import { lookFromItems, type LookIds } from "@/lib/look/chain";
+import { OCCASION_LOOKS } from "@/lib/look/defaults";
 
 export type PickedLook = {
   ids: LookIds;
@@ -17,26 +18,16 @@ export type PickedLook = {
   leftover: number;
 };
 
-function byCategory(
+function requireItem(
   catalog: CatalogItem[],
+  id: string,
   category: Category,
-  occasion: Occasion,
-): CatalogItem[] {
-  return catalog.filter(
-    (item) => item.category === category && item.occasions.includes(occasion),
-  );
-}
-
-function cohesionScore(items: CatalogItem[]): number {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    for (const tag of item.palette) {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    }
+): CatalogItem {
+  const item = catalog.find((entry) => entry.id === id);
+  if (!item || item.category !== category) {
+    throw new Error(`Catalog is missing ${category} "${id}"`);
   }
-  let best = 0;
-  for (const count of counts.values()) best = Math.max(best, count);
-  return best;
+  return item;
 }
 
 function comboOf(
@@ -45,7 +36,7 @@ function comboOf(
   hairstyle: CatalogItem,
   lip: CatalogItem,
 ): Omit<PickedLook, "ids" | "withinBudget" | "leftover"> {
-  const items = [outfit, earrings, hairstyle, lip];
+  const items = [outfit, hairstyle, earrings, lip];
   return {
     outfit,
     earrings,
@@ -69,58 +60,22 @@ function toPicked(
 }
 
 /**
- * Pick one outfit, earrings, hairstyle and lip that all suit `occasion`.
- * Prefers the highest spend that still fits `budget`, with a cohesion bonus
- * for shared palette tags. If nothing fits, returns the cheapest complete look
- * and marks it over budget.
+ * Return the captured occasion look (the combination that has real YouCam
+ * renders). Budget only decides the within-budget flag.
  */
 export function pickLook(
   catalog: CatalogItem[],
   occasion: Occasion,
   budget: number,
 ): PickedLook {
-  const outfits = byCategory(catalog, "outfit", occasion);
-  const earrings = byCategory(catalog, "earrings", occasion);
-  const hairstyles = byCategory(catalog, "hairstyle", occasion);
-  const lips = byCategory(catalog, "lip", occasion);
-
-  if (
-    outfits.length === 0 ||
-    earrings.length === 0 ||
-    hairstyles.length === 0 ||
-    lips.length === 0
-  ) {
-    throw new Error(`No complete look for occasion "${occasion}"`);
-  }
-
-  let cheapest: ReturnType<typeof comboOf> | null = null;
-  let bestFit: ReturnType<typeof comboOf> | null = null;
-  let bestScore = -Infinity;
-
-  for (const outfit of outfits) {
-    for (const earring of earrings) {
-      for (const hairstyle of hairstyles) {
-        for (const lip of lips) {
-          const combo = comboOf(outfit, earring, hairstyle, lip);
-          if (!cheapest || combo.total < cheapest.total) cheapest = combo;
-          if (combo.total > budget) continue;
-          const leftover = budget - combo.total;
-          const score =
-            combo.total + cohesionScore(combo.items) * 350 - leftover * 0.02;
-          if (score > bestScore) {
-            bestScore = score;
-            bestFit = combo;
-          }
-        }
-      }
-    }
-  }
-
-  const chosen = bestFit ?? cheapest;
-  if (!chosen) {
-    throw new Error(`No complete look for occasion "${occasion}"`);
-  }
-  return toPicked(chosen, budget);
+  const ids = OCCASION_LOOKS[occasion];
+  const combo = comboOf(
+    requireItem(catalog, ids.outfitId, "outfit"),
+    requireItem(catalog, ids.earringId, "earrings"),
+    requireItem(catalog, ids.hairId, "hairstyle"),
+    requireItem(catalog, ids.lipId, "lip"),
+  );
+  return toPicked(combo, budget);
 }
 
 export function lookTotal(items: CatalogItem[]): number {

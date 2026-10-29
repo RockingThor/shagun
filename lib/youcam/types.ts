@@ -23,6 +23,7 @@ export type ParsedTask = {
   url?: string;
   dstId?: string;
   error?: string;
+  errorMessage?: string;
   raw: unknown;
 };
 

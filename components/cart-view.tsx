@@ -55,7 +55,7 @@ export function CartView() {
             <SafeImage
               src={look.afterUrl}
               alt={`${OCCASION_COPY[look.occasion].label} look`}
-              className="aspect-[4/5] w-full rounded-2xl"
+              className="aspect-[3/4] w-full rounded-2xl"
             />
             <div>
               <div className="flex items-start justify-between gap-3">

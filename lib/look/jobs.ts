@@ -1,13 +1,16 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { catalog, itemById, type CatalogItem, type Occasion } from "@/data/catalog";
-import { portraitSvg } from "@/lib/demo-portrait";
+import { DEMO_SELFIE, demoImageFor } from "@/lib/demo-renders";
 import { hashBytes, hashLookCacheKey } from "@/lib/look/cache-key";
 import {
   CHAIN_STEPS,
+  EARLOBE_NOTE,
   STEP_META,
+  isEarlobeError,
   lookIdForStep,
-  sourceStep,
+  resolveSourceStep,
+  skipEarrings,
   stepsFrom,
   type ChainStep,
   type LookIds,
@@ -17,21 +20,28 @@ import { getCachedStep, setCachedStep } from "@/lib/youcam/cache";
 import {
   createYouCamTask,
   getYouCamTask,
-  refFields,
-  sourceFields,
   uploadToYouCam,
   YouCamApiError,
 } from "@/lib/youcam/client";
+import { youcamConfig } from "@/lib/youcam/config";
+import {
+  clothesPayload,
+  earringPayload,
+  hairPayload,
+  hairTemplateId,
+  lipstickPayload,
+} from "@/lib/youcam/payloads";
+import { fetchAsJpeg, prepareJpeg } from "@/lib/youcam/prepare";
 import type { ImageSource } from "@/lib/youcam/types";
-import { hairTemplateOverride, youcamConfig } from "@/lib/youcam/config";
 
 export type StepState = {
   id: ChainStep;
-  status: "pending" | "running" | "success" | "error" | "cached";
+  status: "pending" | "running" | "success" | "error" | "cached" | "skipped";
   imageUrl?: string;
   dstId?: string;
   youcamTaskId?: string;
   error?: string;
+  note?: string;
   units: number;
   startedAt?: number;
 };
@@ -50,6 +60,7 @@ export type LookJob = {
   currentStep: ChainStep;
   status: "running" | "success" | "error";
   error?: string;
+  note?: string;
   steps: Record<ChainStep, StepState>;
   unitsUsed: number;
 };
@@ -121,7 +132,7 @@ function lookItems(ids: LookIds): PickedLook {
   if (!outfit || !earrings || !hairstyle || !lip) {
     throw new Error("Look references an unknown catalog item");
   }
-  const items = [outfit, earrings, hairstyle, lip];
+  const items = [outfit, hairstyle, earrings, lip];
   const total = items.reduce((sum, item) => sum + item.priceInr, 0);
   return {
     ids,
@@ -134,17 +145,6 @@ function lookItems(ids: LookIds): PickedLook {
     withinBudget: true,
     leftover: 0,
   };
-}
-
-function demoPortraitUrl(look: LookIds, step: ChainStep | "selfie"): string {
-  const params = new URLSearchParams({
-    outfit: look.outfitId,
-    earrings: look.earringId,
-    hair: look.hairId,
-    lip: look.lipId,
-    step,
-  });
-  return `/api/demo/portrait?${params.toString()}`;
 }
 
 async function readPublicFile(publicPath: string): Promise<{
@@ -175,16 +175,29 @@ function isRaster(contentType: string): boolean {
   );
 }
 
+async function uploadJpeg(input: {
+  bytes: Buffer;
+  contentType?: string;
+  fileName: string;
+}): Promise<string> {
+  const jpeg = await prepareJpeg(input.bytes);
+  return uploadToYouCam({
+    bytes: jpeg.bytes,
+    contentType: jpeg.contentType,
+    fileName: input.fileName.replace(/\.[^.]+$/, ".jpg"),
+  });
+}
+
 async function youcamIdForCatalog(item: CatalogItem): Promise<ImageSource> {
   const cached = memory.catalogYouCamIds.get(item.id);
   if (cached) return { fileId: cached };
   const file = await readPublicFile(item.image);
   if (!isRaster(file.contentType)) {
     throw new Error(
-      `${item.name} is still a placeholder SVG. Replace ${item.image} with a JPG or PNG before live YouCam VTO.`,
+      `${item.name} needs a JPG or PNG at ${item.image} for live YouCam VTO.`,
     );
   }
-  const fileId = await uploadToYouCam(file);
+  const fileId = await uploadJpeg(file);
   memory.catalogYouCamIds.set(item.id, fileId);
   return { fileId };
 }
@@ -193,22 +206,20 @@ async function sourceFor(
   job: LookJob,
   step: ChainStep,
 ): Promise<ImageSource> {
-  const prev = sourceStep(step);
+  const prev = resolveSourceStep(job.steps, step);
   if (prev === "selfie") {
     const upload = memory.uploads.get(job.imageHash);
     if (upload?.youcamFileId) return { fileId: upload.youcamFileId };
     if (upload && isRaster(upload.contentType)) {
-      upload.youcamFileId = await uploadToYouCam({
-        bytes: upload.bytes,
-        contentType: upload.contentType,
-        fileName: upload.fileName,
-      });
+      upload.youcamFileId = await uploadJpeg(upload);
       return { fileId: upload.youcamFileId };
     }
     if (job.imageHash === DEMO_SELFIE_HASH) {
-      throw new Error(
-        "Live mode needs a real JPG/PNG selfie. The illustrated sample is demo-only.",
-      );
+      const file = await readPublicFile(DEMO_SELFIE);
+      const fileId = await uploadJpeg(file);
+      const stored = memory.uploads.get(DEMO_SELFIE_HASH);
+      if (stored) stored.youcamFileId = fileId;
+      return { fileId };
     }
     throw new Error("Selfie is missing or is not a JPG/PNG.");
   }
@@ -225,49 +236,14 @@ function payloadForStep(
   ref: ImageSource | undefined,
 ): Record<string, unknown> {
   const config = youcamConfig();
-  const src = sourceFields(source);
-  if (step === "clothes") {
-    return {
-      ...src,
-      ...refFields(ref!),
-      garment_category: item.garmentCategory ?? "upper_body",
-    };
-  }
-  if (step === "earrings") {
-    return {
-      ...src,
-      ...refFields(ref!, { array: true }),
-    };
-  }
+  if (step === "clothes") return clothesPayload(source, ref!, item.garmentCategory);
   if (step === "hair") {
-    const template =
-      hairTemplateOverride(item.id) ?? item.youcamTemplateId;
-    if (template) return { ...src, template_id: template };
-    return { ...src, ...refFields(ref!) };
+    const template = hairTemplateId(item);
+    if (!template) throw new Error(`${item.name} is missing a hair template_id`);
+    return hairPayload(source, template);
   }
-  const hex = item.lipHex ?? item.swatch;
-  const texture = item.lipTexture ?? "matte";
-  const palette: Record<string, unknown> = {
-    color: hex,
-    texture,
-    colorIntensity: 70,
-  };
-  if (texture === "gloss") {
-    palette.gloss = 70;
-    palette.transparencyIntensity = 35;
-  }
-  return {
-    ...src,
-    version: "1.0",
-    effects: [
-      {
-        category: "lip_color",
-        shape: { name: config.lipShape },
-        style: { type: "full" },
-        palettes: [palette],
-      },
-    ],
-  };
+  if (step === "earrings") return earringPayload(source, ref!);
+  return lipstickPayload(source, item, config.lipShape);
 }
 
 function featurePath(step: ChainStep): string {
@@ -278,8 +254,14 @@ function featurePath(step: ChainStep): string {
   return config.makeupPath;
 }
 
-function needsRef(step: ChainStep): boolean {
-  return step === "clothes" || step === "earrings" || step === "hair";
+function applyEarringSkip(job: LookJob, reason?: string) {
+  const skipped = skipEarrings(job.steps.hair.imageUrl);
+  const state = job.steps.earrings;
+  state.status = "skipped";
+  state.imageUrl = skipped.imageUrl;
+  state.note = skipped.note;
+  state.error = reason;
+  job.note = skipped.note;
 }
 
 async function startLiveStep(
@@ -289,6 +271,14 @@ async function startLiveStep(
   const state = job.steps[step];
   const item = itemById(lookIdForStep(job.look, step));
   if (!item) throw new Error(`Missing item for ${step}`);
+
+  if (step === "earrings") {
+    const hairItem = itemById(job.look.hairId);
+    if (hairItem && hairItem.exposesEars === false) {
+      applyEarringSkip(job);
+      return "skipped";
+    }
+  }
 
   const cacheKey = hashLookCacheKey(job.imageHash, job.look, step);
   const cached = getCachedStep(cacheKey);
@@ -301,12 +291,8 @@ async function startLiveStep(
 
   const source = await sourceFor(job, step);
   let ref: ImageSource | undefined;
-  if (needsRef(step)) {
-    if (step === "hair" && (hairTemplateOverride(item.id) || item.youcamTemplateId)) {
-      ref = undefined;
-    } else {
-      ref = await youcamIdForCatalog(item);
-    }
+  if (step === "clothes" || step === "earrings") {
+    ref = await youcamIdForCatalog(item);
   }
   const body = payloadForStep(step, source, item, ref);
   state.youcamTaskId = await createYouCamTask(featurePath(step), body);
@@ -328,29 +314,42 @@ async function pollLiveStep(
     state.status = "running";
     return state.status;
   }
+  const message = parsed.errorMessage || parsed.error;
   if (parsed.taskStatus === "success" && parsed.url) {
     state.status = "success";
     state.imageUrl = parsed.url;
-    state.dstId = parsed.dstId;
+    try {
+      const jpeg = await fetchAsJpeg(parsed.url);
+      state.dstId = await uploadJpeg(jpeg);
+    } catch {
+      state.dstId = parsed.dstId;
+    }
     job.unitsUsed += state.units;
     setCachedStep(hashLookCacheKey(job.imageHash, job.look, step), {
       imageUrl: parsed.url,
-      dstId: parsed.dstId,
+      dstId: state.dstId,
     });
     return state.status;
   }
+  if (step === "earrings" && isEarlobeError(message)) {
+    applyEarringSkip(job, message);
+    return "skipped";
+  }
   state.status = "error";
-  state.error =
-    parsed.error || `YouCam ${step} ended with status ${parsed.taskStatus}`;
+  state.error = message || `YouCam ${step} ended with status ${parsed.taskStatus}`;
   job.status = "error";
   job.error = state.error;
   return state.status;
 }
 
+function demoUrl(job: LookJob, step: ChainStep | "selfie"): string {
+  return demoImageFor(job.look, step, job.occasion);
+}
+
 function advanceDemo(job: LookJob) {
   const queue = stepsFrom(job.fromStep);
   const elapsed = Date.now() - job.createdAt;
-  const slice = 900;
+  const slice = 700;
   queue.forEach((step, index) => {
     const state = job.steps[step];
     const opensAt = index * slice;
@@ -363,15 +362,13 @@ function advanceDemo(job: LookJob) {
       state.status = "running";
       state.startedAt = job.createdAt + opensAt;
       job.currentStep = step;
-      const previous = sourceStep(step);
+      const previous = resolveSourceStep(job.steps, step);
       state.imageUrl =
-        previous === "selfie"
-          ? job.selfiePreviewUrl
-          : job.steps[previous].imageUrl;
+        previous === "selfie" ? job.selfiePreviewUrl : job.steps[previous].imageUrl;
       return;
     }
     state.status = "success";
-    state.imageUrl = demoPortraitUrl(job.look, step);
+    state.imageUrl = demoUrl(job, step);
     job.unitsUsed = queue
       .slice(0, index + 1)
       .reduce((sum, id) => sum + STEP_META[id].units, 0);
@@ -380,7 +377,7 @@ function advanceDemo(job: LookJob) {
   if (elapsed >= queue.length * slice) {
     job.status = "success";
     job.currentStep = last;
-    job.steps[last].imageUrl = demoPortraitUrl(job.look, last);
+    job.steps[last].imageUrl = demoUrl(job, last);
   }
 }
 
@@ -392,7 +389,7 @@ export async function createLookJob(input: {
   fromStep?: ChainStep;
   selfiePreviewUrl?: string;
 }): Promise<LookJob> {
-  ensureDemoSelfie();
+  await ensureDemoSelfie();
   const config = youcamConfig();
   const picked = input.look
     ? lookItems(input.look)
@@ -405,9 +402,7 @@ export async function createLookJob(input: {
   const selfiePreviewUrl =
     input.selfiePreviewUrl ||
     upload?.previewUrl ||
-    (input.imageHash === DEMO_SELFIE_HASH
-      ? demoPortraitUrl(picked.ids, "selfie")
-      : "/demo/selfie.svg");
+    DEMO_SELFIE;
 
   const job: LookJob = {
     id: newId(),
@@ -430,9 +425,7 @@ export async function createLookJob(input: {
     if (stepsFrom(fromStep).includes(step)) continue;
     const prior = job.steps[step];
     prior.status = "success";
-    prior.imageUrl = config.demoMode
-      ? demoPortraitUrl(job.look, step)
-      : undefined;
+    prior.imageUrl = config.demoMode ? demoUrl(job, step) : undefined;
     const cached = getCachedStep(
       hashLookCacheKey(job.imageHash, job.look, step),
     );
@@ -471,7 +464,13 @@ export async function tickJob(job: LookJob): Promise<LookJob> {
   const queue = stepsFrom(job.fromStep);
   for (const step of queue) {
     const state = job.steps[step];
-    if (state.status === "success" || state.status === "cached") continue;
+    if (
+      state.status === "success" ||
+      state.status === "cached" ||
+      state.status === "skipped"
+    ) {
+      continue;
+    }
     if (state.status === "error") {
       job.status = "error";
       return job;
@@ -490,21 +489,28 @@ export async function tickJob(job: LookJob): Promise<LookJob> {
           : error instanceof Error
             ? error.message
             : "YouCam request failed";
+      if (step === "earrings" && isEarlobeError(message)) {
+        applyEarringSkip(job, message);
+        continue;
+      }
       state.status = "error";
       state.error = message;
       job.status = "error";
       job.error = message;
       return job;
     }
+    if (after === "skipped") continue;
     if (after !== "success" && after !== "cached") {
       return job;
     }
   }
 
   const last = queue[queue.length - 1]!;
+  const lastStatus = job.steps[last].status;
   if (
-    job.steps[last].status === "success" ||
-    job.steps[last].status === "cached"
+    lastStatus === "success" ||
+    lastStatus === "cached" ||
+    lastStatus === "skipped"
   ) {
     job.status = "success";
     job.currentStep = last;
@@ -522,12 +528,14 @@ export function serializeJob(job: LookJob) {
       .map((step) => job.steps[step].imageUrl)
       .find(Boolean) ||
     job.selfiePreviewUrl;
+  const earringSkipped = job.steps.earrings.status === "skipped";
 
   return {
     jobId: job.id,
     status: job.status,
     demoMode: job.demoMode,
     error: job.error ?? null,
+    note: job.note ?? (earringSkipped ? EARLOBE_NOTE : null),
     occasion: job.occasion,
     budget: job.budget,
     look: job.look,
@@ -542,7 +550,10 @@ export function serializeJob(job: LookJob) {
     finalImageUrl:
       job.status === "success" ? job.steps[last].imageUrl ?? null : null,
     unitsUsed: job.unitsUsed,
-    unitsPlanned: queue.reduce((sum, step) => sum + STEP_META[step].units, 0),
+    unitsPlanned: queue.reduce((sum, step) => {
+      if (step === "earrings" && earringSkipped) return sum;
+      return sum + STEP_META[step].units;
+    }, 0),
     steps: CHAIN_STEPS.map((id) => ({
       id,
       label: STEP_META[id].label,
@@ -552,6 +563,7 @@ export function serializeJob(job: LookJob) {
       status: job.steps[id].status,
       imageUrl: job.steps[id].imageUrl ?? null,
       error: job.steps[id].error ?? null,
+      note: job.steps[id].note ?? null,
     })),
   };
 }
@@ -560,25 +572,24 @@ export function hashBuffer(bytes: Buffer): string {
   return hashBytes(bytes);
 }
 
-function ensureDemoSelfie(): void {
+async function ensureDemoSelfie(): Promise<void> {
   if (memory.uploads.has(DEMO_SELFIE_HASH)) return;
-  const svg = Buffer.from(
-    portraitSvg({
-      look: {
-        outfitId: "ivory-cape",
-        earringId: "pearl-drops",
-        hairId: "sleek-part",
-        lipId: "marigold-nude",
-      },
-      step: "selfie",
-      caption: "Sample selfie",
-    }),
-  );
-  memory.uploads.set(DEMO_SELFIE_HASH, {
-    hash: DEMO_SELFIE_HASH,
-    bytes: svg,
-    contentType: "image/svg+xml",
-    fileName: "selfie.svg",
-    previewUrl: "/demo/selfie.svg",
-  });
+  try {
+    const file = await readPublicFile(DEMO_SELFIE);
+    memory.uploads.set(DEMO_SELFIE_HASH, {
+      hash: DEMO_SELFIE_HASH,
+      bytes: file.bytes,
+      contentType: file.contentType,
+      fileName: file.fileName,
+      previewUrl: DEMO_SELFIE,
+    });
+  } catch {
+    memory.uploads.set(DEMO_SELFIE_HASH, {
+      hash: DEMO_SELFIE_HASH,
+      bytes: Buffer.from([]),
+      contentType: "image/jpeg",
+      fileName: "selfie.jpg",
+      previewUrl: DEMO_SELFIE,
+    });
+  }
 }

@@ -14,27 +14,34 @@ export const OCCASION_COPY: Record<
   diwali: {
     label: "Diwali",
     kicker: "Lamps, gold, marigold",
-    blurb: "Saffron and maroon silks, temple jewellery, a gajra in the hair.",
+    blurb: "Saffron anarkali, temple jhumkas, a boho side braid, sindoor rose.",
   },
   sangeet: {
     label: "Sangeet",
     kicker: "Dance floor, sequins",
-    blurb: "Moveable Indo-western sets, statement earrings, a berry lip.",
+    blurb: "Navy sequin co-ord, kundan chandbali, a gajra bun, festive coral.",
   },
   "office-party": {
     label: "Office party",
     kicker: "Polished, not costume",
-    blurb: "Ivory and navy with quiet gold, a sleek part, a nude-coral mouth.",
+    blurb: "Ivory cape kurta, quiet gold hoops, a sleek middle part, nude lip.",
   },
   "wedding-guest": {
     label: "Wedding guest",
     kicker: "Festive, not bridal",
-    blurb: "A lehenga or cape kurta, pearls or kundan, a soft bun.",
+    blurb: "Banarasi wine lehenga, pearl drops, a casual updo, berry wine.",
   },
 };
 
 export const CATEGORIES = ["outfit", "earrings", "hairstyle", "lip"] as const;
 export type Category = (typeof CATEGORIES)[number];
+
+export const CATEGORY_LABEL: Record<Category, string> = {
+  outfit: "Outfit",
+  hairstyle: "Hair",
+  earrings: "Earrings",
+  lip: "Lip",
+};
 
 export type PaletteTag =
   | "saffron"
@@ -66,6 +73,7 @@ export type CatalogItem = {
   earringStyle?: EarringStyleId;
   hairStyle?: HairStyleId;
   youcamTemplateId?: string;
+  exposesEars?: boolean;
   lipHex?: string;
   lipTexture?: "matte" | "gloss";
 };
@@ -77,7 +85,7 @@ export const catalog: CatalogItem[] = [
     category: "outfit",
     priceInr: 4990,
     occasions: ["diwali", "sangeet"],
-    image: "/catalog/marigold-anarkali.svg",
+    image: "/catalog/marigold-anarkali.jpg",
     description: "Saffron georgette with a gold-thread yoke. Chest-up VTO as upper body.",
     palette: ["saffron", "gold"],
     swatch: "#D97706",
@@ -91,7 +99,7 @@ export const catalog: CatalogItem[] = [
     category: "outfit",
     priceInr: 8990,
     occasions: ["wedding-guest", "diwali"],
-    image: "/catalog/banarasi-lehenga.svg",
+    image: "/catalog/banarasi-lehenga.jpg",
     description: "Maroon Banarasi blouse with zari border. Rendered from a chest-up selfie.",
     palette: ["maroon", "gold"],
     swatch: "#7A1F2B",
@@ -105,7 +113,7 @@ export const catalog: CatalogItem[] = [
     category: "outfit",
     priceInr: 4490,
     occasions: ["office-party", "wedding-guest"],
-    image: "/catalog/ivory-cape.svg",
+    image: "/catalog/ivory-cape.jpg",
     description: "Ivory silk kurta with a detachable gold-edge cape.",
     palette: ["ivory", "gold"],
     swatch: "#F3E6C8",
@@ -119,7 +127,7 @@ export const catalog: CatalogItem[] = [
     category: "outfit",
     priceInr: 5490,
     occasions: ["office-party", "sangeet"],
-    image: "/catalog/navy-coord.svg",
+    image: "/catalog/navy-coord.jpg",
     description: "Indo-western navy co-ord with sparse gold sequins.",
     palette: ["navy", "gold"],
     swatch: "#1E3A5F",
@@ -133,7 +141,7 @@ export const catalog: CatalogItem[] = [
     category: "earrings",
     priceInr: 2490,
     occasions: ["diwali", "wedding-guest", "sangeet"],
-    image: "/catalog/kundan-chandbali.svg",
+    image: "/catalog/kundan-chandbali.jpg",
     description: "Crescent kundan chandbalis. YouCam 2D earring VTO, product image as ref.",
     palette: ["gold", "maroon"],
     swatch: "#E8C547",
@@ -146,7 +154,7 @@ export const catalog: CatalogItem[] = [
     category: "earrings",
     priceInr: 1690,
     occasions: ["diwali", "sangeet"],
-    image: "/catalog/temple-jhumkas.svg",
+    image: "/catalog/temple-jhumkas.jpg",
     description: "Bell jhumkas with a temple-coin drop.",
     palette: ["gold", "saffron"],
     swatch: "#C9A227",
@@ -159,7 +167,7 @@ export const catalog: CatalogItem[] = [
     category: "earrings",
     priceInr: 1290,
     occasions: ["office-party", "wedding-guest"],
-    image: "/catalog/pearl-drops.svg",
+    image: "/catalog/pearl-drops.jpg",
     description: "Ivory pearl clusters on a thin gold hook.",
     palette: ["ivory", "gold"],
     swatch: "#F7F1E3",
@@ -172,7 +180,7 @@ export const catalog: CatalogItem[] = [
     category: "earrings",
     priceInr: 890,
     occasions: ["office-party", "sangeet"],
-    image: "/catalog/gold-hoops.svg",
+    image: "/catalog/gold-hoops.jpg",
     description: "Small polished hoops. The quiet option.",
     palette: ["gold"],
     swatch: "#D4AF37",
@@ -181,16 +189,19 @@ export const catalog: CatalogItem[] = [
   },
   {
     id: "gajra-waves",
-    name: "Gajra Loose Waves",
+    name: "Gajra Bun",
     category: "hairstyle",
     priceInr: 1490,
     occasions: ["diwali", "sangeet"],
-    image: "/catalog/gajra-waves.svg",
-    description: "Shoulder waves with a white gajra. Hair-transfer style add-on.",
+    image: "/catalog/gajra-waves.jpg",
+    description:
+      "Messy bun with the ears clear. Template female_messy_bun — long waves cover lobes and fail earrings.",
     palette: ["ivory", "saffron"],
     swatch: "#3B2416",
     accent: "#F7F1E3",
-    hairStyle: "waves",
+    hairStyle: "bun",
+    youcamTemplateId: "female_messy_bun",
+    exposesEars: true,
   },
   {
     id: "bridal-bun",
@@ -198,12 +209,14 @@ export const catalog: CatalogItem[] = [
     category: "hairstyle",
     priceInr: 1990,
     occasions: ["wedding-guest", "sangeet"],
-    image: "/catalog/bridal-bun.svg",
-    description: "A low, soft bun. Not a bride's trail — a guest's bun.",
+    image: "/catalog/bridal-bun.jpg",
+    description: "Casual updo, ears out. Template female_casual_updo.",
     palette: ["maroon", "gold"],
     swatch: "#2A1810",
     accent: "#E8C547",
     hairStyle: "bun",
+    youcamTemplateId: "female_casual_updo",
+    exposesEars: true,
   },
   {
     id: "sleek-part",
@@ -211,12 +224,14 @@ export const catalog: CatalogItem[] = [
     category: "hairstyle",
     priceInr: 790,
     occasions: ["office-party", "wedding-guest"],
-    image: "/catalog/sleek-part.svg",
-    description: "Glossy centre part, tucked behind the ears.",
+    image: "/catalog/sleek-part.jpg",
+    description: "Glossy middle part, tucked. Template female_sleek_middle_part.",
     palette: ["navy", "ivory"],
     swatch: "#1A120C",
     accent: "#F3E6C8",
     hairStyle: "sleek",
+    youcamTemplateId: "female_sleek_middle_part",
+    exposesEars: true,
   },
   {
     id: "side-sweep",
@@ -224,12 +239,14 @@ export const catalog: CatalogItem[] = [
     category: "hairstyle",
     priceInr: 990,
     occasions: ["office-party", "diwali"],
-    image: "/catalog/side-sweep.svg",
-    description: "Side part with a deep sweep. Works with both silk and sequins.",
+    image: "/catalog/side-sweep.jpg",
+    description: "Boho side braid. Template female_boho_side_braid.",
     palette: ["gold", "rose"],
     swatch: "#3B2416",
     accent: "#C4785A",
     hairStyle: "sideswept",
+    youcamTemplateId: "female_boho_side_braid",
+    exposesEars: true,
   },
   {
     id: "sindoor-rose",
@@ -292,7 +309,7 @@ export const catalog: CatalogItem[] = [
 export const BUDGET_PRESETS = [7000, 10000, 13000, 16000] as const;
 export const BUDGET_MIN = 6000;
 export const BUDGET_MAX = 18000;
-export const DEFAULT_BUDGET = 10000;
+export const DEFAULT_BUDGET = 14000;
 
 export function itemById(id: string): CatalogItem | undefined {
   return catalog.find((item) => item.id === id);

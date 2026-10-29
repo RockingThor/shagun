@@ -1,4 +1,4 @@
-import { portraitSvg } from "@/lib/demo-portrait";
+import { demoImageFor } from "@/lib/demo-renders";
 import { CHAIN_STEPS, type ChainStep, type LookIds } from "@/lib/look/chain";
 
 export const dynamic = "force-dynamic";
@@ -16,20 +16,10 @@ export async function GET(request: Request) {
   const look: LookIds = {
     outfitId: url.searchParams.get("outfit") ?? "marigold-anarkali",
     earringId: url.searchParams.get("earrings") ?? "temple-jhumkas",
-    hairId: url.searchParams.get("hair") ?? "gajra-waves",
+    hairId: url.searchParams.get("hair") ?? "side-sweep",
     lipId: url.searchParams.get("lip") ?? "sindoor-rose",
   };
   const step = asStep(url.searchParams.get("step"));
-  try {
-    const svg = portraitSvg({ look, step });
-    return new Response(svg, {
-      headers: {
-        "Content-Type": "image/svg+xml; charset=utf-8",
-        "Cache-Control": "public, max-age=3600",
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Render failed";
-    return new Response(message, { status: 400 });
-  }
+  const target = demoImageFor(look, step);
+  return Response.redirect(new URL(target, url.origin), 302);
 }

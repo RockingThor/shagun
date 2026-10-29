@@ -1,6 +1,5 @@
 import { youcamConfig } from "@/lib/youcam/config";
 import type {
-  ImageSource,
   ParsedTask,
   YouCamErrorPayload,
   YouCamFileRequest,
@@ -203,6 +202,11 @@ export function parseYouCamTask(payload: unknown): ParsedTask {
       root.dst_id,
     ),
     error,
+    errorMessage: pickString(
+      data?.error_message,
+      root.error_message,
+      error,
+    ),
     raw: payload,
   };
 }
@@ -218,24 +222,5 @@ export async function getYouCamTask(
   return parseYouCamTask(payload);
 }
 
-export function sourceFields(source: ImageSource): Record<string, string> {
-  if (source.fileId) return { src_file_id: source.fileId };
-  if (source.url) return { src_file_url: source.url };
-  throw new Error("YouCam task is missing src_file_id and src_file_url");
-}
-
-export function refFields(
-  source: ImageSource,
-  { array = false }: { array?: boolean } = {},
-): Record<string, unknown> {
-  if (array) {
-    if (source.fileId) return { ref_file_ids: [source.fileId] };
-    if (source.url) return { ref_file_urls: [source.url] };
-  } else {
-    if (source.fileId) return { ref_file_id: source.fileId };
-    if (source.url) return { ref_file_url: source.url };
-  }
-  throw new Error("YouCam task is missing a reference image");
-}
-
+export { sourceFields } from "@/lib/youcam/payloads";
 export { YouCamApiError };

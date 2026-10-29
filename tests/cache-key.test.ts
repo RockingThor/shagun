@@ -8,7 +8,7 @@ const selfieB = "hash-b";
 const look: LookIds = {
   outfitId: "marigold-anarkali",
   earringId: "temple-jhumkas",
-  hairId: "gajra-waves",
+  hairId: "side-sweep",
   lipId: "sindoor-rose",
 };
 
@@ -33,30 +33,43 @@ describe("lookCacheKey", () => {
     expect(lookCacheKey(selfieA, look, "clothes")).toBe(
       lookCacheKey(selfieA, swappedLip, "clothes"),
     );
-    expect(lookCacheKey(selfieA, look, "earrings")).toBe(
-      lookCacheKey(selfieA, swappedLip, "earrings"),
-    );
     expect(lookCacheKey(selfieA, look, "hair")).toBe(
       lookCacheKey(selfieA, swappedLip, "hair"),
+    );
+    expect(lookCacheKey(selfieA, look, "earrings")).toBe(
+      lookCacheKey(selfieA, swappedLip, "earrings"),
     );
     expect(lookCacheKey(selfieA, look, "lipstick")).not.toBe(
       lookCacheKey(selfieA, swappedLip, "lipstick"),
     );
   });
 
-  it("invalidates earrings and every later step when earrings change", () => {
+  it("keeps the hair cache when only earrings change", () => {
     const swapped: LookIds = { ...look, earringId: "gold-hoops" };
     expect(lookCacheKey(selfieA, look, "clothes")).toBe(
       lookCacheKey(selfieA, swapped, "clothes"),
     );
+    expect(lookCacheKey(selfieA, look, "hair")).toBe(
+      lookCacheKey(selfieA, swapped, "hair"),
+    );
     expect(lookCacheKey(selfieA, look, "earrings")).not.toBe(
       lookCacheKey(selfieA, swapped, "earrings"),
+    );
+    expect(lookCacheKey(selfieA, look, "lipstick")).not.toBe(
+      lookCacheKey(selfieA, swapped, "lipstick"),
+    );
+  });
+
+  it("invalidates hair and every later step when hair changes", () => {
+    const swapped: LookIds = { ...look, hairId: "bridal-bun" };
+    expect(lookCacheKey(selfieA, look, "clothes")).toBe(
+      lookCacheKey(selfieA, swapped, "clothes"),
     );
     expect(lookCacheKey(selfieA, look, "hair")).not.toBe(
       lookCacheKey(selfieA, swapped, "hair"),
     );
-    expect(lookCacheKey(selfieA, look, "lipstick")).not.toBe(
-      lookCacheKey(selfieA, swapped, "lipstick"),
+    expect(lookCacheKey(selfieA, look, "earrings")).not.toBe(
+      lookCacheKey(selfieA, swapped, "earrings"),
     );
   });
 
@@ -64,9 +77,7 @@ describe("lookCacheKey", () => {
     expect(lookCacheKey(selfieA, look, "clothes")).toBe(
       `${selfieA}|clothes|clothes:marigold-anarkali`,
     );
-    expect(lookCacheKey(selfieA, look, "earrings")).toContain(
-      "earrings:temple-jhumkas",
-    );
-    expect(lookCacheKey(selfieA, look, "clothes")).not.toContain("earrings:");
+    expect(lookCacheKey(selfieA, look, "hair")).toContain("hair:side-sweep");
+    expect(lookCacheKey(selfieA, look, "hair")).not.toContain("earrings:");
   });
 });

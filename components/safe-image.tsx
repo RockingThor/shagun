@@ -3,7 +3,7 @@
 import { cn } from "@/lib/cn";
 import { useEffect, useState } from "react";
 
-const FALLBACK = "/demo/selfie.svg";
+const FALLBACK = "/demo/selfie.jpg";
 
 export function SafeImage({
   src,

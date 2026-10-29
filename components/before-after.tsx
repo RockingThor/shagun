@@ -22,7 +22,7 @@ export function BeforeAfter({
         <SafeImage
           src={beforeSrc}
           alt={beforeLabel}
-          className="aspect-[4/5] w-full"
+          className="aspect-[3/4] w-full"
         />
         <div
           className="absolute inset-0"

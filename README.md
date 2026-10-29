@@ -2,23 +2,24 @@
 
 An Indian occasion-styling store for the Devpost **YouCam API Skin AI & eCommerce VTO Hackathon**.
 
-Upload a chest-up selfie, pick Diwali, a sangeet, an office party or a wedding guest look, and a rupee budget. Shagun picks an outfit, earrings, a hairstyle and a lip shade from a 16-item catalog, then **chains four YouCam tasks** onto the same face:
+Upload a chest-up selfie, pick Diwali, a sangeet, an office party or a wedding guest look, and a rupee budget. Shagun picks an outfit, a hairstyle, earrings and a lip shade, then **chains four YouCam tasks** onto the same face:
 
 1. Clothes VTO (`cloth-v4`, 2 units)
-2. Earrings 2D VTO (`2d-vto/earring`, 1 unit)
-3. Hairstyle transfer (`hair-transfer` v2.1, 2 units)
+2. Hairstyle transfer (`hair-transfer` v2.1, 2 units)
+3. Earrings 2D VTO (`2d-vto/earring`, 1 unit)
 4. Makeup VTO lipstick (`makeup-vto`, 1 unit)
 
-Each step’s result (`dst_id` when present, otherwise the result URL) is the next step’s source. Swapping one item re-renders **only from that step onward**. Adding the look puts all four SKUs in the cart, priced against the budget.
+Hair must run **before** earrings. Hair-transfer redraws the head and erases jewellery if the order is reversed. Loose hair over the ears fails earrings with `earlobe alignment not confident` (not charged); the live path skips that step and suggests an updo.
 
-**6 units per full look.** A lipstick swap costs 1; an earring swap costs 4.
+Each successful result is re-encoded to JPEG (max side 1024) and re-uploaded so the next task always gets a JPG. Swapping one item re-renders from that step onward. Adding the look puts all four SKUs in the cart.
+
+**6 units per full look.** A lipstick swap costs 1; an earring swap costs 2; a hair swap costs 4.
 
 ## Setup
 
 ```bash
 npm install
 cp .env.example .env.local
-npm run generate:placeholders
 npm test
 npm run dev
 ```
@@ -30,90 +31,55 @@ The app listens on [http://127.0.0.1:43127](http://127.0.0.1:43127).
 | Variable | Default | Purpose |
 |---|---|---|
 | `YOUCAM_API_KEY` | unset | Server-only Bearer token. Never sent to the browser. |
-| `YOUCAM_API_BASE` | `https://yce-api-01.makeupar.com` | India-region host from the YouCam docs. |
-| `DEMO_MODE` | `true` when no key | Complete flow with illustrated results, zero units. |
+| `YOUCAM_API_BASE` | `https://yce-api-01.makeupar.com` | India-region host. |
+| `DEMO_MODE` | `true` when no key | Real captured renders, zero units. Set `false` to go live. |
 | `YOUCAM_DAILY_IP_CAP` | `8` | Live-mode look starts per client IP per UTC day. |
-| `YOUCAM_FILE_PATH` | `/s2s/v2.0/file` | File API. |
-| `YOUCAM_CLOTHES_PATH` | `/s2s/v2.0/task/cloth-v4` | Clothes VTO. |
-| `YOUCAM_EARRING_PATH` | `/s2s/v2.0/task/2d-vto/earring` | Earrings 2D VTO. |
-| `YOUCAM_HAIR_PATH` | `/s2s/v2.1/task/hair-transfer` | Hairstyle V2.1. Treat as configurable. |
-| `YOUCAM_MAKEUP_PATH` | `/s2s/v2.0/task/makeup-vto` | Makeup VTO. |
-| `YOUCAM_LIP_SHAPE` | `original` | Lipstick shape label from `lipshape.json`. |
-| `YOUCAM_HAIR_TEMPLATE_*` | unset | Optional hair-transfer `template_id`s. If unset, live mode uploads the hairstyle catalog **JPG/PNG**. |
+| `YOUCAM_POLL_HINT_MS` | `3000` | YouCam poll interval used in docs. |
+| Feature paths | see `.env.example` | File, cloth-v4, hair-transfer v2.1, 2d-vto/earring, makeup-vto. |
+| `YOUCAM_LIP_SHAPE` | `original` | Lipstick shape label. |
+| `YOUCAM_HAIR_TEMPLATE_*` | catalog defaults | Override `template_id`s. |
 
 Auth is `Authorization: Bearer <YOUCAM_API_KEY>`.
 
 ## Demo mode
 
-Demo is the default until a key is set. It still:
+Default until a key is set. Each occasion uses the captured YouCam chain:
 
-- picks a look inside the budget
-- walks clothes → earrings → hair → lipstick with progress
-- swaps from the changed step onward
-- adds the itemised look to the cart
+| Occasion | Outfit | Hair (`template_id`) | Earrings | Lips |
+|---|---|---|---|---|
+| Diwali | Marigold Anarkali | side-sweep → `female_boho_side_braid` | Temple Jhumkas | Sindoor Rose `#B4233A` matte |
+| Sangeet | Navy Sequin Co-ord | Gajra Bun → `female_messy_bun` | Kundan Chandbali | Festive Coral `#E05A4F` gloss |
+| Office party | Ivory Cape Kurta | sleek-part → `female_sleek_middle_part` | Gold Hoops | Marigold Nude `#C4785A` matte |
+| Wedding guest | Banarasi Wine Lehenga | bridal-bun → `female_casual_updo` | Pearl Drops | Berry Wine `#6B1D32` gloss |
 
-Results are illustrated SVG portraits from `public/demo/` plus `GET /api/demo/portrait`. No YouCam units are spent.
+Sample selfie: `public/demo/selfie.jpg` (768×1024). Step frames: `public/demo/looks/{occasion}-{clothes,hair,earrings,lipstick}.jpg`.
 
-## Live path (code-complete, not run here)
+## Live payloads
 
-The browser never talks to YouCam. Route Handlers own the key.
+Clothes: `{ src_file_id, ref_file_id, garment_category: "upper_body" }`
 
-1. `POST /api/upload` stores the selfie and hashes it.
-2. `POST /api/look` rate-limits the IP, picks or accepts a look, uploads files, creates the first task, returns a `jobId`.
-3. The browser polls `GET /api/look/:jobId`. Each poll checks the current YouCam task (~2 s). On success it starts the next feature using `dst_id` or the result URL. Requests stay short.
-4. Step results are cached by `sha256(imageHash + items through this step)` for two hours (YouCam result URLs expire).
+Hair: `{ src_file_id, template_id }` (input JPG, long side ≤ 1024)
 
-Polling is mandatory per the docs; a created task that is never polled still times out and can spend units. This app polls until `task_status` is `success` or `error`.
+Earrings: `{ src_file_id, ref_file_ids, source_info, object_infos }` — `source_info` and `object_infos[].name` are required or YouCam returns 400.
 
-Live catalog references must be **JPG or PNG**. The SVG cards in `public/catalog/` are placeholders and will be rejected with a clear error.
+Lipstick: `{ src_file_id, version: "1.0", effects: [{ category: "lip_color", shape: { name: "original" }, style: { type: "full" }, palettes: [{ color, texture, colorIntensity: 70, …gloss fields }] }] }`
+
+Failed tasks are not charged. Earring PNG outputs are converted to JPEG before the next upload.
 
 ## Unit cost per look
 
 | Step | Feature | Units |
 |---|---|---|
 | Clothes | `/s2s/v2.0/task/cloth-v4` | 2 |
-| Earrings | `/s2s/v2.0/task/2d-vto/earring` | 1 |
 | Hair | `/s2s/v2.1/task/hair-transfer` | 2 |
+| Earrings | `/s2s/v2.0/task/2d-vto/earring` | 1 (skipped if lobes are covered) |
 | Lipstick | `/s2s/v2.0/task/makeup-vto` | 1 |
 | **Full look** | chained | **6** |
 
-Units are charged by YouCam only on success. The in-app counter tracks planned vs used units, including skipped work from cache or a partial re-render.
+## Assets
 
-## Images still needed
+Catalog outfits, earrings and hairstyles are real JPG product / template photos. Lip shades stay hex swatches (`public/catalog/*.svg`).
 
-Tasteful SVG placeholders ship so nothing is empty or broken. Replace them with real photos (keep the same filenames) before a live demo:
-
-**Catalog (product photos YouCam can use as `ref_file`):**
-
-- `public/catalog/marigold-anarkali.svg` → JPG/PNG of the anarkali
-- `public/catalog/banarasi-lehenga.svg`
-- `public/catalog/ivory-cape.svg`
-- `public/catalog/navy-coord.svg`
-- `public/catalog/kundan-chandbali.svg` — single-earring product shot
-- `public/catalog/temple-jhumkas.svg`
-- `public/catalog/pearl-drops.svg`
-- `public/catalog/gold-hoops.svg`
-- `public/catalog/gajra-waves.svg` — hair reference selfie, or set `YOUCAM_HAIR_TEMPLATE_GAJRA_WAVES`
-- `public/catalog/bridal-bun.svg`
-- `public/catalog/sleek-part.svg`
-- `public/catalog/side-sweep.svg`
-- `public/catalog/sindoor-rose.svg` — lipstick still (hex is already in the catalog)
-- `public/catalog/berry-wine.svg`
-- `public/catalog/marigold-nude.svg`
-- `public/catalog/festive-coral.svg`
-
-**Demo renders (optional once a key exists; the SVG portraits remain a fallback):**
-
-- `public/demo/selfie.svg` — a real chest-up selfie (shoulders visible)
-- `public/demo/looks/{diwali,sangeet,office-party,wedding-guest}-{clothes,earrings,hair,lipstick}.svg`
-
-Selfie requirements from the YouCam notes: JPG/PNG, under 10 MB, single person, chest-up with shoulders, frontal face.
-
-## Scripts
-
-- `npm run dev` — http://127.0.0.1:43127
-- `npm test` — picker, chain / partial re-render, cache key
-- `npm run build`
-- `npm run generate:placeholders` — rewrite SVG catalog and demo art
+`python3 scripts/optimize-assets.py` recompresses the live YouCam bundle into `public/`.
 
 MIT licence. Hackathon deadline: **Mon 2 Nov 2026, 10:15 PM IST**.

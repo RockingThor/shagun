@@ -8,7 +8,7 @@ export default function CartPage() {
       </p>
       <h1 className="mt-2 font-display text-4xl text-maroon">Cart</h1>
       <p className="mt-3 max-w-xl text-sm leading-6 text-ink/70">
-        Each row is a full occasion look: outfit, earrings, hairstyle and lip
+        Each row is a full occasion look: outfit, hairstyle, earrings and lip
         shade, priced against the budget you set on Style.
       </p>
       <div className="mt-8">
