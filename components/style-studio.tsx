@@ -25,11 +25,19 @@ import {
   CHAIN_STEPS,
   STEP_META,
   categoryToStep,
+  stepsFrom,
   withSwappedItem,
   type ChainStep,
   type LookIds,
 } from "@/lib/look/chain";
 import { DEMO_SELFIE } from "@/lib/look/defaults";
+import {
+  DEMO_STEP_MS,
+  capturedStepsReady,
+  demoPlaybackFrame,
+  isCapturedPlayback,
+  prefetchUrls,
+} from "@/lib/look/playback";
 import { SAMPLE_PHOTO_HASH } from "@/lib/look/sample";
 import { remainingBudget } from "@/lib/look/picker";
 import { Check, Loader2, RotateCcw, Sparkles, Upload, X } from "lucide-react";
@@ -106,12 +114,19 @@ export function StyleStudio() {
   const [added, setAdded] = useState(false);
 
   const usingSample = imageHash === SAMPLE_PHOTO_HASH;
+  const playbackGen = useRef(0);
+  const liveJobId =
+    job && job.status === "running" && !isCapturedPlayback(job)
+      ? job.jobId
+      : null;
 
   useEffect(() => {
-    if (!job || job.status !== "running") return;
+    if (!liveJobId) return;
+    let cancelled = false;
     const timer = window.setInterval(async () => {
-      const response = await fetch(`/api/look/${job.jobId}`);
+      const response = await fetch(`/api/look/${liveJobId}`);
       const next = (await response.json()) as JobPayload & ApiError;
+      if (cancelled) return;
       if (!response.ok) {
         setMessage(next.error ?? "Lost the render job.");
         setOfferSample(Boolean(next.offerSample));
@@ -125,10 +140,14 @@ export function StyleStudio() {
       }
       if (next.status !== "running") setBusy(false);
     }, 900);
-    return () => window.clearInterval(timer);
-  }, [job]);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [liveJobId]);
 
   function loadSamplePhoto() {
+    playbackGen.current += 1;
     setImageHash(SAMPLE_PHOTO_HASH);
     setPreviewUrl(DEMO_SELFIE);
     setJob(null);
@@ -168,6 +187,7 @@ export function StyleStudio() {
     const hash = overrides?.hash ?? imageHash;
     const preview = overrides?.preview ?? previewUrl;
     const priorJob = overrides?.prior === undefined ? job : overrides.prior;
+    const gen = ++playbackGen.current;
     if (!hash) {
       setMessage("Upload a chest-up selfie, or use the sample.");
       return;
@@ -196,8 +216,30 @@ export function StyleStudio() {
       setOfferSample(Boolean(data.offerSample));
       return;
     }
+    if (capturedStepsReady(data)) {
+      await playCapturedLook(data, gen);
+      return;
+    }
+    if (playbackGen.current !== gen) return;
     setJob(data);
     if (data.status !== "running") setBusy(false);
+  }
+
+  async function playCapturedLook(finalJob: JobPayload, gen: number) {
+    prefetchUrls([
+      finalJob.selfiePreviewUrl,
+      ...finalJob.steps.map((step) => step.imageUrl),
+    ]);
+    const runningCount = stepsFrom(finalJob.fromStep).length;
+    setBusy(true);
+    for (let index = 0; index < runningCount; index += 1) {
+      if (playbackGen.current !== gen) return;
+      setJob(demoPlaybackFrame(finalJob, index));
+      await new Promise((resolve) => window.setTimeout(resolve, DEMO_STEP_MS));
+    }
+    if (playbackGen.current !== gen) return;
+    setJob(finalJob);
+    setBusy(false);
   }
 
   function addToCart() {

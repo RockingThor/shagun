@@ -32,14 +32,16 @@ describe("sample photo in live mode", () => {
   });
 
   it("serves captured demo looks at zero units even when a live key is set", async () => {
+    const started = Date.now();
     const job = await createLookJob({
       imageHash: SAMPLE_PHOTO_HASH,
       occasion: "diwali",
       budget: 14000,
     });
+    expect(Date.now() - started).toBeLessThan(500);
     expect(job.samplePhoto).toBe(true);
     expect(job.demoMode).toBe(true);
-    job.createdAt = Date.now() - 10_000;
+    expect(job.status).toBe("success");
     await tickJob(job);
     expect(job.status).toBe("success");
     expect(job.unitsUsed).toBe(0);
@@ -59,7 +61,7 @@ describe("sample photo in live mode", () => {
       fromStep: "earrings",
     });
     expect(job.demoMode).toBe(true);
-    job.createdAt = Date.now() - 10_000;
+    expect(job.status).toBe("success");
     await tickJob(job);
     expect(job.status).toBe("success");
     expect(job.unitsUsed).toBe(0);

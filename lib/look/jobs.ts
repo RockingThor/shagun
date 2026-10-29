@@ -145,6 +145,9 @@ function catalogFileKey(itemId: string): string {
 
 async function persistJob(job: LookJob): Promise<void> {
   memory.jobs.set(job.id, job);
+  // Captured/demo looks are resolved in one response and played on the client.
+  // Writing them to Blobs only adds serverless latency on every poll.
+  if (job.demoMode || job.samplePhoto) return;
   const slim: LookJob = {
     ...job,
     selfiePreviewUrl: job.selfiePreviewUrl.startsWith("data:")
@@ -501,40 +504,20 @@ function demoUrl(job: LookJob, step: ChainStep | "selfie"): string {
   return demoImageFor(job.look, step, job.occasion);
 }
 
-function advanceDemo(job: LookJob) {
+function completeDemo(job: LookJob) {
   const queue = stepsFrom(job.fromStep);
-  const elapsed = Date.now() - job.createdAt;
-  const slice = 700;
-  queue.forEach((step, index) => {
+  for (const step of queue) {
     const state = job.steps[step];
-    const opensAt = index * slice;
-    const doneAt = opensAt + slice;
-    if (elapsed < opensAt) {
-      state.status = "pending";
-      return;
-    }
-    if (elapsed < doneAt) {
-      state.status = "running";
-      state.startedAt = job.createdAt + opensAt;
-      job.currentStep = step;
-      const previous = resolveSourceStep(job.steps, step);
-      state.imageUrl =
-        previous === "selfie" ? job.selfiePreviewUrl : job.steps[previous].imageUrl;
-      return;
-    }
     state.status = "success";
     state.imageUrl = demoUrl(job, step);
-    if (!job.samplePhoto) {
-      job.unitsUsed = queue
-        .slice(0, index + 1)
-        .reduce((sum, id) => sum + STEP_META[id].units, 0);
-    }
-  });
+    state.startedAt = job.createdAt;
+  }
   const last = queue[queue.length - 1]!;
-  if (elapsed >= queue.length * slice) {
-    job.status = "success";
-    job.currentStep = last;
-    job.steps[last].imageUrl = demoUrl(job, last);
+  job.status = "success";
+  job.currentStep = last;
+  job.steps[last].imageUrl = demoUrl(job, last);
+  if (!job.samplePhoto) {
+    job.unitsUsed = queue.reduce((sum, id) => sum + STEP_META[id].units, 0);
   }
 }
 
@@ -552,6 +535,7 @@ async function hydratePriors(
       prior.status = "success";
       prior.imageUrl = demoUrl(job, step);
     }
+    if (job.demoMode) continue;
     const cached = await getCachedStep(
       hashLookCacheKey(job.imageHash, job.look, step),
     );
@@ -623,7 +607,7 @@ export async function createLookJob(input: {
   await hydratePriors(job, input.priorSteps);
 
   if (job.demoMode) {
-    advanceDemo(job);
+    completeDemo(job);
   } else {
     try {
       await startLiveStep(job, job.fromStep);
@@ -643,7 +627,7 @@ export async function createLookJob(input: {
 export async function tickJob(job: LookJob): Promise<LookJob> {
   if (job.status !== "running") return job;
   if (job.demoMode) {
-    advanceDemo(job);
+    completeDemo(job);
     await persistJob(job);
     return job;
   }
@@ -770,22 +754,12 @@ export function resetLookMemoryForTests(): void {
 
 async function ensureDemoSelfie(): Promise<void> {
   if (memory.uploads.has(SAMPLE_PHOTO_HASH)) return;
-  try {
-    const file = await readPublicFile(DEMO_SELFIE);
-    memory.uploads.set(SAMPLE_PHOTO_HASH, {
-      hash: SAMPLE_PHOTO_HASH,
-      bytes: file.bytes,
-      contentType: file.contentType,
-      fileName: file.fileName,
-      previewUrl: DEMO_SELFIE,
-    });
-  } catch {
-    memory.uploads.set(SAMPLE_PHOTO_HASH, {
-      hash: SAMPLE_PHOTO_HASH,
-      bytes: Buffer.from([]),
-      contentType: "image/jpeg",
-      fileName: "selfie.jpg",
-      previewUrl: DEMO_SELFIE,
-    });
-  }
+  // Sample looks never upload this file to YouCam; keep a stub so create is free.
+  memory.uploads.set(SAMPLE_PHOTO_HASH, {
+    hash: SAMPLE_PHOTO_HASH,
+    bytes: Buffer.from([]),
+    contentType: "image/jpeg",
+    fileName: "selfie.jpg",
+    previewUrl: DEMO_SELFIE,
+  });
 }
